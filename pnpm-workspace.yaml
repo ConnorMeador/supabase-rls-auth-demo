@@ -1,0 +1,5 @@
+# sharp is next's optional image-optimization dependency -- not needed for
+# this demo (no build/runtime image transforms used), so its native build
+# script is disabled rather than approved.
+allowBuilds:
+  sharp: false
