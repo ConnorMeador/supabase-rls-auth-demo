@@ -1,0 +1,73 @@
+name: test
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  typecheck-and-unit:
+    name: Typecheck + unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Unit tests (policies.unit.test.ts — always runs, no DB needed)
+        run: pnpm test
+
+  rls-integration:
+    name: RLS integration tests (real local Postgres)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start local Supabase (applies supabase/migrations/*.sql)
+        run: supabase start --workdir .
+
+      - name: Export local Supabase credentials
+        # `supabase status` prints the local stack's API URL, anon key, and
+        # service_role key -- all local-only values, generated fresh for
+        # this ephemeral CI Postgres instance. None of this is a real
+        # secret; it's the same fixed demo JWT the CLI prints on every
+        # laptop that runs `supabase start`.
+        run: |
+          supabase status -o json > /tmp/supabase-status.json
+          echo "SUPABASE_URL=$(jq -r '.API_URL' /tmp/supabase-status.json)" >> "$GITHUB_ENV"
+          echo "SUPABASE_ANON_KEY=$(jq -r '.ANON_KEY' /tmp/supabase-status.json)" >> "$GITHUB_ENV"
+          echo "SUPABASE_SERVICE_ROLE_KEY=$(jq -r '.SERVICE_ROLE_KEY' /tmp/supabase-status.json)" >> "$GITHUB_ENV"
+
+      - name: Run RLS integration tests
+        run: pnpm test
+
+      - name: Stop local Supabase
+        if: always()
+        run: supabase stop
