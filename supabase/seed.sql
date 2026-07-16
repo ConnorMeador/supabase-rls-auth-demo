@@ -1,0 +1,33 @@
+-- seed.sql
+--
+-- Deliberately empty of `insert into auth.users (...)` statements.
+--
+-- auth.users has a lot of internal columns (encrypted_password,
+-- confirmation tokens, instance_id, etc.) that GoTrue (Supabase's auth
+-- server) manages itself. Hand-inserting rows into auth.users via raw SQL
+-- is a common source of "why can't this test user log in" bugs -- the row
+-- exists but is missing something GoTrue expects.
+--
+-- This project creates its two test identities (a plain member and an
+-- admin) through the Supabase Admin API instead, in
+-- `test/rls.integration.test.ts`:
+--
+--   const admin = createClient(url, serviceRoleKey);
+--   const { data } = await admin.auth.admin.createUser({
+--     email: 'member-a@example.test',
+--     email_confirm: true,
+--   });
+--
+-- That goes through the real GoTrue user-creation path, which also fires
+-- the `on_auth_user_created` trigger from 0001_schema.sql and gives the new
+-- user a `profiles` row for free. The test then promotes one of the two
+-- users to admin with a direct service-role UPDATE (the one path that's
+-- allowed to touch `profiles.role` -- see 0002_rls.sql):
+--
+--   await admin.from('profiles').update({ role: 'admin' }).eq('id', adminUser.id);
+--
+-- If you want manual seed data for local development (not tests), run
+-- `supabase start`, sign up two users through the app's /login page, then
+-- promote one manually:
+--
+--   update public.profiles set role = 'admin' where id = '<the uuid from the Studio auth panel>';
