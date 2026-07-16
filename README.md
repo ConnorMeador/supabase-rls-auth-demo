@@ -185,6 +185,17 @@ pattern, generalized here without any client specifics:
    (`never grants a profiles policy 'to public'`) specifically so this
    can't silently regress again.
 
+4. **`BYPASSRLS` doesn't bypass table grants — and this repo's own CI proved
+   it.** The first integration run in GitHub Actions failed with
+   `permission denied for table profiles` *for the service-role client*, the
+   one that's supposed to skip RLS entirely. It does skip RLS — but BYPASSRLS
+   says nothing about table-level `GRANT`s, and the schema was silently
+   relying on the platform's default privileges to hand those out. The fresh
+   database CI spins up had no such defaults, so the API roles had no grants
+   at all. `supabase/migrations/0003_explicit_grants.sql` now states every
+   grant explicitly, which is what a migration should have done from the
+   start: assume nothing about the database it lands on.
+
 ## Project layout
 
 ```
